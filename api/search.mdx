@@ -1,0 +1,170 @@
+---
+title: "Search API"
+description: "Search across your content using text queries"
+---
+
+The Search API allows you to search through your content items by title, content text, and URLs using case-insensitive pattern matching.
+
+## Search Content
+
+<RequestExample>
+```bash cURL - Basic Search
+curl -X GET "https://api.cognia.com/api/v1/search?q=javascript" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```bash cURL - Multi-word Search
+curl -X GET "https://api.cognia.com/api/v1/search?q=machine%20learning" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```bash cURL - URL Search
+curl -X GET "https://api.cognia.com/api/v1/search?q=github.com" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ParamField query="q" type="string" required>
+  The search query string. Searches across title, content, and link fields using case-insensitive pattern matching.
+</ParamField>
+
+<ResponseField name="results" type="array">
+  Array of content objects matching the search query. Returns empty array if no matches found or if query is empty. Each result includes:
+  - `_id`: Content unique identifier
+  - `title`: Content title
+  - `content`: Text content (if applicable)
+  - `link`: URL (if applicable)
+  - `type`: Content type (`note`, `youtube`, `twitter`, `link`)
+  - `tags`: Associated tags
+  - `userId`: Owner's user ID
+  - `workspaceId`: Associated workspace (if set)
+  - `imageUrl`: Image URL (if set)
+  - `createdAt`: Creation timestamp
+  - `updatedAt`: Last update timestamp
+</ResponseField>
+
+<ResponseExample>
+```json 200 - With Results
+{
+  "results": [
+    {
+      "_id": "507f1f77bcf86cd799439011",
+      "title": "JavaScript Best Practices",
+      "content": "Here are some JavaScript tips and tricks...",
+      "type": "note",
+      "tags": [],
+      "userId": "507f191e810c19729de860ea",
+      "workspaceId": "workspace123",
+      "createdAt": "2026-03-04T10:30:00.000Z",
+      "updatedAt": "2026-03-04T10:30:00.000Z"
+    },
+    {
+      "_id": "507f1f77bcf86cd799439012",
+      "title": "Learn JavaScript",
+      "link": "https://javascript.info",
+      "type": "link",
+      "tags": [],
+      "userId": "507f191e810c19729de860ea",
+      "createdAt": "2026-03-03T14:20:00.000Z",
+      "updatedAt": "2026-03-03T14:20:00.000Z"
+    }
+  ]
+}
+```
+
+```json 200 - No Results
+{
+  "results": []
+}
+```
+
+```json 200 - Empty Query
+{
+  "results": []
+}
+```
+</ResponseExample>
+
+## Search Capabilities
+
+The search functionality provides:
+
+### Multi-field Search
+
+Searches simultaneously across three fields:
+- **title**: Content item titles
+- **content**: Full text content (for notes)
+- **link**: URLs (for links, YouTube videos, Twitter posts)
+
+### Case-Insensitive Matching
+
+All searches are case-insensitive, so `"JavaScript"`, `"javascript"`, and `"JAVASCRIPT"` return the same results.
+
+### Pattern Matching
+
+Uses regular expression pattern matching to find partial matches:
+- Query `"script"` matches `"JavaScript"`, `"TypeScript"`, `"scripting"`
+- Query `"learn"` matches `"learning"`, `"Learn React"`, `"machine learning"`
+
+### Empty Query Handling
+
+Empty or whitespace-only queries return an empty results array instead of all content:
+
+```bash
+# Returns empty array
+curl -X GET "https://api.cognia.com/api/v1/search?q=" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+## Performance Considerations
+
+### Database Indexing
+
+The content collection uses MongoDB text indexes on the following fields for optimized search performance:
+- `title`
+- `content`
+- `link`
+- `tags`
+
+### User Scope
+
+Searches are automatically scoped to the authenticated user's content only. You cannot search other users' content.
+
+### Query Optimization Tips
+
+<Tip>
+  For best performance:
+  - Use specific search terms rather than very common words
+  - Avoid extremely short queries (1-2 characters)
+  - Consider filtering by `type` or `workspaceId` first using the GET `/api/v1/content` endpoint, then search within those results client-side for complex queries
+</Tip>
+
+## Common Use Cases
+
+### Finding Notes by Topic
+
+```bash
+curl -X GET "https://api.cognia.com/api/v1/search?q=machine%20learning" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Finding Content by URL
+
+```bash
+curl -X GET "https://api.cognia.com/api/v1/search?q=github.com" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Finding YouTube Videos
+
+```bash
+curl -X GET "https://api.cognia.com/api/v1/search?q=youtube.com" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Searching for Specific Keywords
+
+```bash
+curl -X GET "https://api.cognia.com/api/v1/search?q=API" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```

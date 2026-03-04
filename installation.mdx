@@ -1,0 +1,259 @@
+---
+title: Installation
+description: Self-host Cognia on your own infrastructure with this step-by-step installation guide
+---
+
+This guide will help you set up and run Cognia locally or deploy it to your own server.
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Node.js** (v18 or higher recommended)
+- **MongoDB** (v5.0 or higher)
+- **Git** for cloning the repository
+- **npm** or **yarn** package manager
+
+## Installation
+
+<Steps>
+  <Step title="Clone the repository">
+    Clone the Cognia repository to your local machine:
+
+    ```bash
+    git clone https://github.com/yourusername/cognia.git
+    cd cognia
+    ```
+  </Step>
+
+  <Step title="Set up the backend">
+    Navigate to the backend directory and install dependencies:
+
+    ```bash
+    cd Backend
+    npm install
+    ```
+
+    The backend uses the following key dependencies:
+    - **express** (v5.1.0) - Web framework
+    - **mongoose** (v8.16.3) - MongoDB object modeling
+    - **jsonwebtoken** (v9.0.2) - JWT authentication
+    - **bcrypt** (v6.0.0) - Password hashing
+    - **cors** (v2.8.5) - Cross-origin resource sharing
+  </Step>
+
+  <Step title="Configure backend environment variables">
+    Create a `.env` file in the `Backend` directory with the following required variables:
+
+    ```bash .env
+    # JWT Secret - Use a strong random string
+    JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+
+    # MongoDB Connection URI
+    MONGODB_URI=mongodb://localhost:27017/cognia
+
+    # Server Port
+    PORT=3000
+    ```
+
+    <Warning>
+      **Security Note:** Always use a strong, randomly generated `JWT_SECRET` in production. Never commit your `.env` file to version control.
+    </Warning>
+
+    <Note>
+      These environment variables are validated at startup by the config loader in `src/config.ts`. The application will fail to start if any required variables are missing.
+    </Note>
+  </Step>
+
+  <Step title="Set up MongoDB">
+    Ensure MongoDB is running on your system. You can start MongoDB with:
+
+    ```bash
+    # For macOS (using Homebrew)
+    brew services start mongodb-community
+
+    # For Linux (systemd)
+    sudo systemctl start mongod
+
+    # For Docker
+    docker run -d -p 27017:27017 --name mongodb mongo:latest
+    ```
+
+    The application will automatically create the `cognia` database and necessary collections on first run.
+  </Step>
+
+  <Step title="Build and start the backend">
+    Build the TypeScript code and start the server:
+
+    ```bash
+    # Build the project
+    npm run build
+
+    # Start the server in production
+    npm start
+
+    # Or run in development mode with auto-reload
+    npm run dev
+    ```
+
+    You should see output indicating successful database connection:
+    ```
+    MongoDB connected successfully
+    Database: cognia
+    Server running on port 3000
+    ```
+  </Step>
+
+  <Step title="Set up the frontend">
+    In a new terminal, navigate to the frontend directory and install dependencies:
+
+    ```bash
+    cd ../Frontend
+    npm install
+    ```
+
+    The frontend is built with:
+    - **React** (v19.1.0) - UI framework
+    - **Vite** (v7.0.4) - Build tool and dev server
+    - **TailwindCSS** (v4.1.11) - Styling
+    - **React Router** (v7.7.0) - Routing
+    - **Axios** (v1.10.0) - HTTP client
+    - **Framer Motion** (v12.23.6) - Animations
+  </Step>
+
+  <Step title="Configure frontend environment">
+    Create a `.env` file in the `Frontend` directory to point to your backend:
+
+    ```bash .env
+    VITE_API_URL=http://localhost:3000
+    ```
+
+    <Note>
+      If you changed the backend port in step 3, make sure to update the `VITE_API_URL` accordingly.
+    </Note>
+  </Step>
+
+  <Step title="Start the frontend development server">
+    Start the Vite development server:
+
+    ```bash
+    npm run dev
+    ```
+
+    The frontend will be available at `http://localhost:5173`. The development server includes:
+    - Hot module replacement (HMR)
+    - Fast refresh for React components
+    - TypeScript type checking
+  </Step>
+</Steps>
+
+## Verify the installation
+
+Once both servers are running, you can verify the installation:
+
+1. Open your browser and navigate to `http://localhost:5173`
+2. Create a new account using the signup form
+3. Add your first piece of content
+
+You should now have a fully functional local instance of Cognia!
+
+## Production deployment
+
+### Build for production
+
+<CodeGroup>
+```bash Backend
+cd Backend
+npm run build
+npm start
+```
+
+```bash Frontend
+cd Frontend
+npm run build
+```
+</CodeGroup>
+
+The frontend build outputs to the `dist` directory and can be served by any static file server or CDN.
+
+### Environment considerations
+
+<Warning>
+  **Before deploying to production:**
+  - Change `JWT_SECRET` to a cryptographically secure random string
+  - Use a production MongoDB instance (MongoDB Atlas, self-hosted, etc.)
+  - Configure CORS origins in `Backend/src/index.ts` to match your frontend domain
+  - Enable HTTPS for both frontend and backend
+  - Set appropriate MongoDB connection pool sizes
+  - Configure proper logging and monitoring
+</Warning>
+
+### CORS configuration
+
+By default, the backend allows requests from:
+- `http://localhost:5173` (local development)
+- `https://cognia-jet.vercel.app`
+- `https://cognia-x.vercel.app`
+
+Update the CORS configuration in `Backend/src/index.ts` (lines 16-26) to include your production domain:
+
+```typescript
+app.use(cors({
+    origin: [
+        "https://your-production-domain.com",
+        "http://localhost:5173", // Keep for local dev
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+```
+
+### Deployment platforms
+
+Cognia can be deployed to various platforms:
+
+- **Backend**: Railway, Render, DigitalOcean, AWS, Google Cloud
+- **Frontend**: Vercel, Netlify, Cloudflare Pages, AWS S3 + CloudFront
+- **Database**: MongoDB Atlas, self-hosted MongoDB, DocumentDB
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="MongoDB connection failed">
+    - Verify MongoDB is running: `mongosh` or `mongo`
+    - Check the `MONGODB_URI` in your `.env` file
+    - Ensure MongoDB is listening on the correct port (default: 27017)
+    - Check firewall rules if connecting to a remote MongoDB instance
+  </Accordion>
+
+  <Accordion title="Backend fails to start with 'Missing env variables' error">
+    The application validates all required environment variables at startup. Ensure your `.env` file includes:
+    - `JWT_SECRET`
+    - `MONGODB_URI`
+    - `PORT`
+  </Accordion>
+
+  <Accordion title="CORS errors in the browser">
+    - Verify the frontend origin is included in the CORS configuration
+    - Check that you're including credentials in API requests
+    - Ensure the `Authorization` header is listed in `allowedHeaders`
+  </Accordion>
+
+  <Accordion title="Authentication token not working">
+    - Verify the `JWT_SECRET` in your `.env` matches between requests
+    - Check that the token is being sent in the `Authorization` header as `Bearer YOUR_TOKEN`
+    - Ensure the token hasn't expired
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart guide" icon="rocket" href="/quickstart">
+    Learn how to use Cognia's core features
+  </Card>
+  <Card title="API reference" icon="code" href="/api/authentication">
+    Explore all available API endpoints
+  </Card>
+</CardGroup>

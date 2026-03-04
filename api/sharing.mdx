@@ -1,0 +1,207 @@
+---
+title: "Brain Sharing API"
+description: "Share your entire brain collection via public links"
+---
+
+The Brain Sharing API allows you to create public share links for your entire content collection ("brain") and retrieve shared brains from other users.
+
+## Create or Remove Share Link
+
+<RequestExample>
+```bash cURL - Create Share Link
+curl -X POST https://api.cognia.com/api/v1/brain/share \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"share": true}'
+```
+
+```bash cURL - Remove Share Link
+curl -X POST https://api.cognia.com/api/v1/brain/share \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"share": false}'
+```
+</RequestExample>
+
+<ParamField body="share" type="boolean" required>
+  Set to `true` to create/update a share link, or `false` to remove the share link.
+</ParamField>
+
+<ResponseField name="message" type="string">
+  Success message indicating the action performed
+</ResponseField>
+
+<ResponseField name="hash" type="string">
+  The generated share link hash (10 characters). Only returned when creating a share link.
+</ResponseField>
+
+<ResponseField name="share" type="boolean">
+  Share status. Only returned when removing a share link.
+</ResponseField>
+
+<ResponseExample>
+```json 200 - Share Link Created
+{
+  "message": "Share link created",
+  "hash": "aB3xK9mP2q"
+}
+```
+
+```json 200 - Share Link Removed
+{
+  "message": "Removed Link",
+  "share": false
+}
+```
+</ResponseExample>
+
+## Access Shared Brain
+
+<RequestExample>
+```bash cURL
+curl -X GET https://api.cognia.com/api/v1/brain/aB3xK9mP2q
+```
+</RequestExample>
+
+<ParamField path="shareLink" type="string" required>
+  The share link hash provided by the brain owner
+</ParamField>
+
+<Note>
+  This endpoint does not require authentication. Anyone with the share link can access the content.
+</Note>
+
+<ResponseField name="username" type="string">
+  The username of the brain owner
+</ResponseField>
+
+<ResponseField name="content" type="array">
+  Array of all content items in the shared brain. Each item includes:
+  - `_id`: Content unique identifier
+  - `title`: Content title
+  - `content`: Text content (if applicable)
+  - `link`: URL (if applicable)
+  - `type`: Content type
+  - `tags`: Associated tags
+  - `imageUrl`: Image URL (if set)
+  - `workspaceId`: Workspace ID (if set)
+  - `createdAt`: Creation timestamp
+  - `updatedAt`: Last update timestamp
+</ResponseField>
+
+<ResponseExample>
+```json 200
+{
+  "username": "john_doe",
+  "content": [
+    {
+      "_id": "507f1f77bcf86cd799439011",
+      "title": "JavaScript Best Practices",
+      "content": "Here are some JavaScript tips...",
+      "type": "note",
+      "tags": [],
+      "workspaceId": "workspace123",
+      "createdAt": "2026-03-04T10:30:00.000Z",
+      "updatedAt": "2026-03-04T10:30:00.000Z"
+    },
+    {
+      "_id": "507f1f77bcf86cd799439012",
+      "title": "Interesting Article",
+      "link": "https://example.com/article",
+      "type": "link",
+      "tags": [],
+      "createdAt": "2026-03-03T14:20:00.000Z",
+      "updatedAt": "2026-03-03T14:20:00.000Z"
+    }
+  ]
+}
+```
+
+```json 404 - Invalid Link
+{
+  "message": "Invalid Link"
+}
+```
+
+```json 404 - User Not Found
+{
+  "message": "user not found"
+}
+```
+</ResponseExample>
+
+## How Share Links Work
+
+### Link Generation
+
+When you create a share link:
+1. A random 10-character hash is generated (e.g., `aB3xK9mP2q`)
+2. The hash is stored in the database associated with your user ID
+3. If you already have a share link, it gets updated with a new hash
+
+### Link Uniqueness
+
+Each user can only have one active share link at a time. Creating a new share link replaces any existing one.
+
+### Link Persistence
+
+Share links persist until explicitly removed by calling the endpoint with `{"share": false}`.
+
+### Public Access
+
+Share links are completely public - no authentication required. Anyone with the hash can access your entire brain collection.
+
+## Security Considerations
+
+<Warning>
+  Share links expose ALL your content publicly. Consider the following before sharing:
+  - All notes, links, videos, and tweets become publicly accessible
+  - Workspace organization is preserved in shared view
+  - No password or authentication protects the shared content
+  - Share links don't expire automatically - you must manually remove them
+</Warning>
+
+## Common Use Cases
+
+### Sharing Your Knowledge Base
+
+```bash
+# 1. Create a share link
+curl -X POST https://api.cognia.com/api/v1/brain/share \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"share": true}'
+
+# Response: {"message": "Share link created", "hash": "aB3xK9mP2q"}
+
+# 2. Share the URL with others
+# https://cognia.com/shared/aB3xK9mP2q
+```
+
+### Revoking Access
+
+```bash
+# Remove the share link to revoke public access
+curl -X POST https://api.cognia.com/api/v1/brain/share \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"share": false}'
+```
+
+### Rotating Share Links
+
+```bash
+# Generate a new hash by creating another share link
+# This invalidates the old link and creates a new one
+curl -X POST https://api.cognia.com/api/v1/brain/share \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"share": true}'
+```
+
+## Implementation Details
+
+The share link system uses a separate `Links` collection in the database:
+- **hash**: The random 10-character string
+- **userId**: Reference to the user who owns the brain (unique constraint)
+- One-to-one relationship: each user can have only one active share link

@@ -1,0 +1,229 @@
+---
+title: "Content API"
+description: "Manage content items including notes, links, videos, and tweets"
+---
+
+The Content API allows you to create, retrieve, and delete content items in your Cognia brain. Content can be notes, YouTube videos, Twitter posts, or web links.
+
+## Create Content
+
+<RequestExample>
+```bash cURL
+curl -X POST https://api.cognia.com/api/v1/content \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "My First Note",
+    "content": "This is the content of my note",
+    "type": "note",
+    "tags": [],
+    "workspaceId": "workspace123"
+  }'
+```
+</RequestExample>
+
+<ParamField body="title" type="string" required>
+  The title of the content item
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  The type of content. Must be one of: `note`, `youtube`, `twitter`, `link`
+</ParamField>
+
+<ParamField body="content" type="string">
+  The text content. Required for `note` type
+</ParamField>
+
+<ParamField body="link" type="string">
+  The URL. Required for `youtube`, `twitter`, and `link` types
+</ParamField>
+
+<ParamField body="imageUrl" type="string">
+  Optional image URL for the content
+</ParamField>
+
+<ParamField body="tags" type="array">
+  Array of tag IDs to associate with this content
+</ParamField>
+
+<ParamField body="workspaceId" type="string">
+  Optional workspace ID to organize content
+</ParamField>
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="createdContent" type="object">
+  The created content object with all fields including:
+  - `_id`: Content unique identifier
+  - `title`: Content title
+  - `content`: Text content (if applicable)
+  - `link`: URL (if applicable)
+  - `type`: Content type
+  - `userId`: Owner's user ID
+  - `workspaceId`: Associated workspace (if set)
+  - `createdAt`: Creation timestamp
+  - `updatedAt`: Last update timestamp
+</ResponseField>
+
+<ResponseExample>
+```json 200
+{
+  "message": "content added",
+  "createdContent": {
+    "_id": "507f1f77bcf86cd799439011",
+    "title": "My First Note",
+    "content": "This is the content of my note",
+    "type": "note",
+    "userId": "507f191e810c19729de860ea",
+    "tags": [],
+    "workspaceId": "workspace123",
+    "createdAt": "2026-03-04T10:30:00.000Z",
+    "updatedAt": "2026-03-04T10:30:00.000Z"
+  }
+}
+```
+
+```json 400 - Missing Required Fields
+{
+  "message": "Title and Type are Required"
+}
+```
+
+```json 400 - Note Without Content
+{
+  "message": "Content is required for creating note"
+}
+```
+
+```json 400 - Link Type Without URL
+{
+  "message": "Link is required for this content type"
+}
+```
+</ResponseExample>
+
+## Get Content
+
+<RequestExample>
+```bash cURL - All Content
+curl -X GET https://api.cognia.com/api/v1/content \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```bash cURL - Filter by Type
+curl -X GET "https://api.cognia.com/api/v1/content?type=note" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```bash cURL - Filter by Workspace
+curl -X GET "https://api.cognia.com/api/v1/content?workspaceId=workspace123" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ParamField query="type" type="string">
+  Filter by content type: `note`, `youtube`, `twitter`, or `link`
+</ParamField>
+
+<ParamField query="workspaceId" type="string">
+  Filter by workspace ID
+</ParamField>
+
+<ResponseField name="content" type="array">
+  Array of content objects. Each object includes:
+  - `title`: Content title
+  - `link`: URL (if applicable)
+  - `content`: Text content (if applicable)
+  - `type`: Content type
+  - `tags`: Associated tags
+  - `workspaceId`: Workspace ID (if set)
+  - `createdAt`: Creation timestamp
+  - `updatedAt`: Last update timestamp
+  - `userId`: Owner information (populated with username)
+</ResponseField>
+
+<ResponseExample>
+```json 200
+{
+  "content": [
+    {
+      "_id": "507f1f77bcf86cd799439011",
+      "title": "My First Note",
+      "content": "This is the content of my note",
+      "type": "note",
+      "tags": [],
+      "workspaceId": "workspace123",
+      "createdAt": "2026-03-04T10:30:00.000Z",
+      "updatedAt": "2026-03-04T10:30:00.000Z",
+      "userId": {
+        "username": "john_doe"
+      }
+    },
+    {
+      "_id": "507f1f77bcf86cd799439012",
+      "title": "Interesting Article",
+      "link": "https://example.com/article",
+      "type": "link",
+      "tags": [],
+      "createdAt": "2026-03-03T14:20:00.000Z",
+      "updatedAt": "2026-03-03T14:20:00.000Z",
+      "userId": {
+        "username": "john_doe"
+      }
+    }
+  ]
+}
+```
+</ResponseExample>
+
+## Delete Content
+
+<RequestExample>
+```bash cURL
+curl -X DELETE https://api.cognia.com/api/v1/content/507f1f77bcf86cd799439011 \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the content to delete
+</ParamField>
+
+<ResponseField name="message" type="string">
+  Success or error message
+</ResponseField>
+
+<ResponseExample>
+```json 200
+{
+  "message": "Deleted successfully"
+}
+```
+
+```json 400 - Invalid ID
+{
+  "message": "Invalid content ID provided"
+}
+```
+
+```json 404 - Not Found
+{
+  "message": "Content not found or unauthorized"
+}
+```
+</ResponseExample>
+
+## Content Types
+
+Cognia supports four content types:
+
+- **note**: Text-based notes with a title and content
+- **youtube**: YouTube video links
+- **twitter**: Twitter/X post links
+- **link**: General web links and articles
+
+Each type has different required fields:
+- Notes require `title` and `content`
+- YouTube, Twitter, and Link types require `title` and `link`

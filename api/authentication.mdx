@@ -1,0 +1,314 @@
+---
+title: "Authentication"
+description: "Learn how to authenticate API requests using JWT tokens"
+---
+
+## Overview
+
+Cognia uses JWT (JSON Web Token) based authentication to secure API endpoints. After signing up or signing in, you'll receive a JWT token that must be included in the Authorization header of subsequent API requests.
+
+<Warning>
+  Store your JWT tokens securely. Never expose them in client-side code or commit them to version control.
+</Warning>
+
+## Authentication Flow
+
+1. **Sign Up**: Create a new account with username and password
+2. **Sign In**: Authenticate with your credentials to receive a JWT token
+3. **Use Token**: Include the token in the `Authorization` header for protected endpoints
+
+---
+
+## Sign Up
+
+Create a new user account.
+
+### Endpoint
+
+```
+POST /api/v1/signup
+```
+
+### Request Body
+
+<ParamField body="username" type="string" required>
+  The username for the new account
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The password for the new account (will be hashed using bcrypt)
+</ParamField>
+
+### Example Request
+
+```bash
+curl -X POST https://api.cognia.example/api/v1/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "johndoe",
+    "password": "securePassword123"
+  }'
+```
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message indicating the user was created
+</ResponseField>
+
+<ResponseField name="userId" type="string">
+  The unique identifier for the newly created user
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "message": "User signed up successfully",
+  "userId": "507f1f77bcf86cd799439011"
+}
+```
+
+### Error Responses
+
+<ResponseExample>
+```json 400 - Missing Fields
+{
+  "message": "Username and password are required"
+}
+```
+
+```json 411 - User Already Exists
+{
+  "message": "User already exists"
+}
+```
+
+```json 500 - Server Error
+{
+  "message": "Internal server error",
+  "error": "Error details"
+}
+```
+</ResponseExample>
+
+---
+
+## Sign In
+
+Authenticate with existing credentials to receive a JWT token.
+
+### Endpoint
+
+```
+POST /api/v1/signin
+```
+
+### Request Body
+
+<ParamField body="username" type="string" required>
+  Your account username
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Your account password
+</ParamField>
+
+### Example Request
+
+```bash
+curl -X POST https://api.cognia.example/api/v1/signin \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "johndoe",
+    "password": "securePassword123"
+  }'
+```
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message indicating successful authentication
+</ResponseField>
+
+<ResponseField name="token" type="string">
+  JWT token to use for authenticated requests
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "message": "Login successful",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjUwN2YxZjc3YmNmODZjZDc5OTQzOTAxMSIsImlhdCI6MTYzOTU4NzYwMH0.abc123xyz"
+}
+```
+
+### Error Responses
+
+<ResponseExample>
+```json 400 - Missing Fields
+{
+  "message": "Username and password are required"
+}
+```
+
+```json 411 - User Not Found
+{
+  "message": "User doesn't exist"
+}
+```
+
+```json 403 - Invalid Credentials
+{
+  "message": "Wrong credentials"
+}
+```
+
+```json 500 - Server Error
+{
+  "message": "Internal Server Error"
+}
+```
+</ResponseExample>
+
+---
+
+## Using the Token
+
+Once you have received a JWT token from the sign-in endpoint, include it in the `Authorization` header of your API requests.
+
+### Example Authenticated Request
+
+```bash
+curl -X GET https://api.cognia.example/api/v1/protected-endpoint \
+  -H "Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+```javascript
+// JavaScript/Node.js example
+const response = await fetch('https://api.cognia.example/api/v1/protected-endpoint', {
+  headers: {
+    'Authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+  }
+});
+```
+
+```python
+# Python example
+import requests
+
+headers = {
+    'Authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+}
+
+response = requests.get('https://api.cognia.example/api/v1/protected-endpoint', headers=headers)
+```
+
+<Note>
+  The token should be sent directly in the Authorization header without any "Bearer" prefix.
+</Note>
+
+---
+
+## Token Format
+
+JWT tokens issued by Cognia contain the following payload:
+
+```json
+{
+  "id": "507f1f77bcf86cd799439011",
+  "iat": 1639587600
+}
+```
+
+- **id**: The user's unique identifier (MongoDB ObjectId)
+- **iat**: Issued at timestamp (Unix timestamp)
+
+<Note>
+  Tokens are signed using the HS256 algorithm with a secret key configured via the `JWT_SECRET` environment variable.
+</Note>
+
+---
+
+## Authentication Middleware
+
+Protected endpoints use authentication middleware to verify JWT tokens. Here's how it works:
+
+### Middleware Implementation
+
+```typescript
+import { NextFunction, Request, Response } from "express";
+import { JWT_SECRET } from "./config";
+import jwt from "jsonwebtoken";
+
+export const userMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  const header = req.headers["authorization"]; 
+  const decoded = jwt.verify(header as string, JWT_SECRET);
+
+  if (decoded) {
+    // @ts-ignore
+    req.userId = decoded.id;
+    next()
+  } else {
+    res.status(403).json({
+      message: "You are not locked in"
+    })
+  }
+}
+```
+
+### How It Works
+
+1. Extracts the token from the `Authorization` header
+2. Verifies the token signature using `JWT_SECRET`
+3. If valid, attaches the user ID to the request object and continues
+4. If invalid or missing, returns a 403 Forbidden response
+
+### Error Response
+
+```json
+{
+  "message": "You are not locked in"
+}
+```
+
+---
+
+## Token Expiration
+
+<Warning>
+  Currently, tokens do not have an expiration time (`exp` claim). This means tokens remain valid indefinitely once issued. Consider implementing token expiration and refresh logic for production environments.
+</Warning>
+
+### Best Practices
+
+- Store tokens securely (e.g., in httpOnly cookies or secure storage)
+- Implement token refresh mechanisms for long-lived sessions
+- Add expiration claims to tokens in production
+- Rotate your `JWT_SECRET` regularly
+- Use HTTPS for all API communications
+
+---
+
+## Security Considerations
+
+<Warning>
+  **Password Security**: Passwords are hashed using bcrypt with a salt before storage. Never store or transmit plain-text passwords.
+</Warning>
+
+<Note>
+  **Environment Variables**: The JWT signing secret is configured via the `JWT_SECRET` environment variable. Ensure this is set to a strong, random value in production.
+</Note>
+
+### Configuration
+
+The authentication system requires the following environment variables:
+
+```bash
+JWT_SECRET=your-secret-key-here
+MONGODB_URI=mongodb://localhost:27017/cognia
+PORT=3000
+```
+
+Make sure these are properly configured in your `.env` file before running the application.

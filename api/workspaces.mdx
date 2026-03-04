@@ -1,0 +1,226 @@
+---
+title: "Workspaces API"
+description: "Organize your content with workspaces"
+---
+
+Workspaces help you organize and categorize your content items. Each workspace can have a custom name, color, and icon.
+
+## Get All Workspaces
+
+<RequestExample>
+```bash cURL
+curl -X GET https://api.cognia.com/api/v1/workspaces \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ResponseField name="workspaces" type="array">
+  Array of workspace objects, sorted by creation date (newest first). Each workspace includes:
+  - `_id`: Workspace unique identifier
+  - `name`: Workspace name
+  - `description`: Optional description
+  - `color`: Color hex code (default: `#6B7280`)
+  - `icon`: Icon identifier (default: `folder`)
+  - `userId`: Owner's user ID
+  - `isDefault`: Whether this is the default workspace
+  - `contentIds`: Array of content IDs in this workspace
+  - `createdAt`: Creation timestamp
+  - `updatedAt`: Last update timestamp
+</ResponseField>
+
+<ResponseExample>
+```json 200
+{
+  "workspaces": [
+    {
+      "_id": "65f8a3b2c4d5e6f7a8b9c0d1",
+      "name": "Work Projects",
+      "description": "Work-related content",
+      "color": "#3B82F6",
+      "icon": "briefcase",
+      "userId": "507f191e810c19729de860ea",
+      "isDefault": false,
+      "contentIds": [],
+      "createdAt": "2026-03-04T10:00:00.000Z",
+      "updatedAt": "2026-03-04T10:00:00.000Z"
+    },
+    {
+      "_id": "65f8a3b2c4d5e6f7a8b9c0d2",
+      "name": "Personal",
+      "color": "#6B7280",
+      "icon": "folder",
+      "userId": "507f191e810c19729de860ea",
+      "isDefault": true,
+      "contentIds": [],
+      "createdAt": "2026-03-03T09:30:00.000Z",
+      "updatedAt": "2026-03-03T09:30:00.000Z"
+    }
+  ]
+}
+```
+</ResponseExample>
+
+## Create Workspace
+
+<RequestExample>
+```bash cURL
+curl -X POST https://api.cognia.com/api/v1/workspaces \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Work Projects",
+    "color": "#3B82F6",
+    "icon": "briefcase"
+  }'
+```
+</RequestExample>
+
+<ParamField body="name" type="string" required>
+  The name of the workspace. Must not be empty or whitespace only.
+</ParamField>
+
+<ParamField body="color" type="string">
+  Hex color code for the workspace (e.g., `#3B82F6`). Defaults to `#6B7280` if not provided.
+</ParamField>
+
+<ParamField body="icon" type="string">
+  Icon identifier for the workspace. Defaults to `folder` if not provided.
+</ParamField>
+
+<ResponseField name="workspace" type="object">
+  The created workspace object with all fields including `_id`, timestamps, and default values.
+</ResponseField>
+
+<ResponseExample>
+```json 201
+{
+  "workspace": {
+    "_id": "65f8a3b2c4d5e6f7a8b9c0d1",
+    "name": "Work Projects",
+    "color": "#3B82F6",
+    "icon": "briefcase",
+    "userId": "507f191e810c19729de860ea",
+    "isDefault": false,
+    "contentIds": [],
+    "createdAt": "2026-03-04T10:00:00.000Z",
+    "updatedAt": "2026-03-04T10:00:00.000Z"
+  }
+}
+```
+
+```json 400 - Missing Name
+{
+  "message": "Workspace name is required"
+}
+```
+</ResponseExample>
+
+## Update Workspace
+
+<RequestExample>
+```bash cURL
+curl -X PUT https://api.cognia.com/api/v1/workspaces/65f8a3b2c4d5e6f7a8b9c0d1 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Updated Workspace Name",
+    "color": "#10B981"
+  }'
+```
+</RequestExample>
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the workspace to update
+</ParamField>
+
+<ParamField body="name" type="string">
+  Updated workspace name
+</ParamField>
+
+<ParamField body="color" type="string">
+  Updated color hex code
+</ParamField>
+
+<ParamField body="icon" type="string">
+  Updated icon identifier
+</ParamField>
+
+<Note>
+  All fields are optional. Only provided fields will be updated.
+</Note>
+
+<ResponseField name="workspace" type="object">
+  The updated workspace object with all current values
+</ResponseField>
+
+<ResponseExample>
+```json 200
+{
+  "workspace": {
+    "_id": "65f8a3b2c4d5e6f7a8b9c0d1",
+    "name": "Updated Workspace Name",
+    "color": "#10B981",
+    "icon": "briefcase",
+    "userId": "507f191e810c19729de860ea",
+    "isDefault": false,
+    "contentIds": [],
+    "createdAt": "2026-03-04T10:00:00.000Z",
+    "updatedAt": "2026-03-04T10:45:00.000Z"
+  }
+}
+```
+
+```json 404 - Not Found
+{
+  "message": "Workspace not found"
+}
+```
+</ResponseExample>
+
+## Delete Workspace
+
+<RequestExample>
+```bash cURL
+curl -X DELETE https://api.cognia.com/api/v1/workspaces/65f8a3b2c4d5e6f7a8b9c0d1 \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the workspace to delete
+</ParamField>
+
+<ResponseField name="message" type="string">
+  Success or error message
+</ResponseField>
+
+<Warning>
+  Deleting a workspace removes the workspace association from all content items. The content items themselves are not deleted.
+</Warning>
+
+<ResponseExample>
+```json 200
+{
+  "message": "Workspace deleted"
+}
+```
+
+```json 404 - Not Found
+{
+  "message": "Workspace not found"
+}
+```
+</ResponseExample>
+
+## Workspace Schema
+
+The workspace data model includes:
+
+- **name** (required): Display name for the workspace
+- **description**: Optional longer description
+- **icon**: String identifier for the icon (e.g., `folder`, `briefcase`, `star`)
+- **color**: Hex color code for visual customization
+- **userId**: Reference to the owner
+- **isDefault**: Boolean indicating if this is the user's default workspace
+- **contentIds**: Array of content item references
+- **timestamps**: Automatic `createdAt` and `updatedAt` fields

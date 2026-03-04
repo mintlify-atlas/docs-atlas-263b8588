@@ -1,0 +1,279 @@
+---
+title: Content management
+description: Learn how to create, organize, and manage different types of content in Cognia including notes, YouTube videos, Twitter links, and web links.
+---
+
+## Overview
+
+Cognia supports multiple content types to help you build your second brain. Each content type is designed to capture and organize information from different sources.
+
+<CardGroup cols={2}>
+  <Card title="Notes" icon="note-sticky">
+    Rich markdown notes with full formatting support
+  </Card>
+  <Card title="YouTube" icon="youtube">
+    Save and organize YouTube videos
+  </Card>
+  <Card title="Twitter" icon="twitter">
+    Bookmark important tweets and threads
+  </Card>
+  <Card title="Web links" icon="link">
+    Save any web page or article
+  </Card>
+</CardGroup>
+
+## Content types
+
+Cognia defines four primary content types:
+
+```typescript
+const ContentType = {
+  Youtube: "youtube",
+  Twitter: "twitter",
+  Note: "note",
+  Link: "link",
+} as const;
+```
+
+Each content type has specific requirements and fields:
+
+- **Notes**: Require `title` and `content` (supports Markdown)
+- **YouTube/Twitter/Links**: Require `title` and `link` URL
+
+## Creating content
+
+### Using the API
+
+Create content by sending a POST request to `/api/v1/content`:
+
+```typescript
+const payload = {
+  title: "My First Note",
+  type: "note",
+  content: "# Hello World\n\nThis is my first note!",
+  tags: [],
+  workspaceId: "optional-workspace-id"
+};
+
+const response = await axios.post(
+  `${BACKEND_URL}/api/v1/content`,
+  payload,
+  {
+    headers: {
+      Authorization: `${localStorage.getItem("token")}`,
+    },
+  }
+);
+```
+
+### Validation rules
+
+The backend enforces validation based on content type:
+
+```typescript
+if (!title || !type) {
+  return res.status(400).json({
+    message: "Title and Type are Required"
+  });
+}
+
+if (type === "note" && !content) {
+  return res.status(400).json({
+    message: "Content is required for creating note"
+  });
+}
+
+if ((type === "youtube" || type === "twitter" || type === "link") && !link) {
+  return res.status(400).json({
+    message: "Link is required for this content type"
+  });
+}
+```
+
+<Note>
+  All content is automatically associated with your user account via the `userId` field.
+</Note>
+
+### Creating notes with markdown
+
+Notes support full Markdown formatting through the MDEditor component:
+
+```tsx
+import MDEditor from "@uiw/react-md-editor";
+
+<MDEditor
+  value={noteContent}
+  onChange={(val) => setNoteContent(val || "")}
+  preview="edit"
+  height={200}
+  textareaProps={{
+    placeholder: "Write your note in markdown...\n\n# Heading\n**bold** *italic* ~~strikethrough~~\n- list item\n> blockquote\n`code`",
+  }}
+/>
+```
+
+### Creating links
+
+For YouTube, Twitter, or web links, provide the URL:
+
+```typescript
+const linkContent = {
+  title: "Interesting Article",
+  type: "link",
+  link: "https://example.com/article",
+  workspaceId: "workspace-123" // Optional
+};
+```
+
+## Viewing content
+
+### Fetching all content
+
+Retrieve your content with optional filters:
+
+```typescript
+GET /api/v1/content
+GET /api/v1/content?type=note
+GET /api/v1/content?workspaceId=123
+GET /api/v1/content?type=youtube&workspaceId=123
+```
+
+The API returns content with populated user information:
+
+```typescript
+const content = await contentModel
+  .find(filter)
+  .select('title link content type tags workspaceId createdAt updatedAt')
+  .populate("userId", "username");
+```
+
+### Displaying content cards
+
+The Dashboard component filters and displays content based on type and workspace:
+
+```typescript
+const displayed = dataToDisplay.filter((item: any) => {
+  const matchesType = !filter || item.type === filter;
+  const matchesWorkspace = !selectedWorkspace || item.workspaceId === selectedWorkspace;
+  return matchesType && matchesWorkspace;
+});
+```
+
+<Tip>
+  Use the filter sidebar to quickly find content by type or workspace.
+</Tip>
+
+## Editing and deleting content
+
+### Deleting content
+
+Delete content by ID:
+
+```typescript
+DELETE /api/v1/content/:id
+```
+
+The backend ensures users can only delete their own content:
+
+```typescript
+const result = await contentModel.deleteOne({
+  _id: contentId,
+  userId: req.userId,
+});
+
+if (result.deletedCount === 0) {
+  return res.status(404).json({ 
+    message: "Content not found or unauthorized" 
+  });
+}
+```
+
+### Security considerations
+
+<Warning>
+  All content operations require authentication via the `Authorization` header. Content is strictly scoped to the authenticated user.
+</Warning>
+
+```typescript
+headers: {
+  Authorization: `${localStorage.getItem("token")}`
+}
+```
+
+## Tags and organization
+
+### Adding tags
+
+Tags can be added when creating content:
+
+```typescript
+const createdContent = await contentModel.create({
+  title,
+  type,
+  userId: req.userId,
+  tags: req.body.tags || [],
+  workspaceId: req.body.workspaceId
+});
+```
+
+### Content schema
+
+The full content schema includes:
+
+```typescript
+{
+  title: String,
+  link: String,
+  content: String,
+  imageUrl: String,
+  tags: [{type: mongoose.Types.ObjectId, ref: 'Tag'}],
+  type: String,
+  userId: {type: mongoose.Types.ObjectId, ref: 'User', required: true},
+  workspaceId: {type: mongoose.Types.ObjectId, ref: 'Workspace', default: null},
+  customFields: {type: Schema.Types.Mixed, default: {}},
+  createdByPlugin: {type: String, default: null},
+  timestamps: true
+}
+```
+
+## Error handling
+
+The ContentModal component provides user-friendly error messages:
+
+```typescript
+if (!title?.trim()) {
+  setError("Title is required!");
+  return;
+}
+
+if (type === "note" && !noteContent.trim()) {
+  setError("Content is required for notes!");
+  return;
+}
+
+if (type !== "note" && !link?.trim()) {
+  setError("Link is required!");
+  return;
+}
+```
+
+<Note>
+  Validation occurs both on the frontend for immediate feedback and on the backend for security.
+</Note>
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Use descriptive titles" icon="heading">
+    Make your content easy to find with clear, searchable titles
+  </Card>
+  <Card title="Organize with workspaces" icon="folder">
+    Group related content together for better organization
+  </Card>
+  <Card title="Add tags" icon="tag">
+    Use tags to create cross-workspace connections
+  </Card>
+  <Card title="Rich markdown" icon="markdown">
+    Take advantage of markdown formatting in notes
+  </Card>
+</CardGroup>

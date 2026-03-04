@@ -1,0 +1,359 @@
+---
+title: Workspaces
+description: Organize your content with workspaces - customizable containers for grouping related notes, links, and resources.
+---
+
+## What are workspaces
+
+Workspaces are customizable containers that help you organize your content into logical groups. Think of them as folders or projects where you can group related notes, links, videos, and tweets together.
+
+Each workspace can be customized with:
+- A unique name
+- A custom color for visual identification
+- An icon to represent the workspace
+- Optional description
+
+## Workspace schema
+
+Workspaces are stored in MongoDB with the following schema:
+
+```typescript
+const workspaceSchema = new Schema({
+  name: {type: String, required: true},
+  description: String,
+  icon: String,
+  color: String,
+  userId: {type: mongoose.Types.ObjectId, ref: 'User', required: true},
+  isDefault: {type: Boolean, default: false},
+  contentIds: [{type: mongoose.Types.ObjectId, ref: 'Content'}],
+}, { timestamps: true });
+```
+
+<Note>
+  Each workspace is tied to a specific user and can only be accessed by that user.
+</Note>
+
+## Creating workspaces
+
+### Using the API
+
+Create a new workspace by sending a POST request:
+
+```typescript
+POST /api/v1/workspaces
+
+Request body:
+{
+  "name": "Work Projects",
+  "color": "#3B82F6",
+  "icon": "briefcase"
+}
+```
+
+### Backend implementation
+
+The workspace creation endpoint validates the name and applies default values:
+
+```typescript
+app.post("/api/v1/workspaces", userMiddleware, async (req, res) => {
+  try {
+    const { name, color, icon } = req.body;
+    if (!name?.trim()) {
+      return res.status(400).json({ 
+        message: "Workspace name is required" 
+      });
+    }
+    const workspace = await WorkspaceModel.create({
+      name: name.trim(),
+      color: color || "#6B7280",
+      icon: icon || "folder",
+      userId: req.userId,
+    });
+    res.status(201).json({ workspace });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+```
+
+<Tip>
+  If you don't specify a color or icon, Cognia will use sensible defaults: `#6B7280` (gray) for color and `folder` for the icon.
+</Tip>
+
+## Customizing colors and icons
+
+### Updating workspace properties
+
+Update workspace properties with a PUT request:
+
+```typescript
+PUT /api/v1/workspaces/:id
+
+Request body:
+{
+  "name": "Updated Name",
+  "color": "#10B981",
+  "icon": "lightbulb"
+}
+```
+
+### Implementation details
+
+```typescript
+app.put("/api/v1/workspaces/:id", userMiddleware, async (req, res) => {
+  try {
+    const { name, color, icon } = req.body;
+    const updated = await WorkspaceModel.findOneAndUpdate(
+      { _id: req.params.id, userId: req.userId },
+      { 
+        ...(name && { name }), 
+        ...(color && { color }), 
+        ...(icon && { icon }) 
+      },
+      { new: true }
+    );
+    if (!updated) {
+      return res.status(404).json({ 
+        message: "Workspace not found" 
+      });
+    }
+    res.json({ workspace: updated });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+```
+
+<Note>
+  The update endpoint only modifies fields that are provided in the request body. Omitted fields remain unchanged.
+</Note>
+
+### Popular color schemes
+
+<CardGroup cols={3}>
+  <Card title="Blue" icon="circle" color="#3B82F6">
+    Professional, trustworthy
+  </Card>
+  <Card title="Green" icon="circle" color="#10B981">
+    Growth, productivity
+  </Card>
+  <Card title="Purple" icon="circle" color="#8B5CF6">
+    Creative, innovative
+  </Card>
+  <Card title="Red" icon="circle" color="#EF4444">
+    Urgent, important
+  </Card>
+  <Card title="Yellow" icon="circle" color="#F59E0B">
+    Energy, ideas
+  </Card>
+  <Card title="Gray" icon="circle" color="#6B7280">
+    Neutral, organized
+  </Card>
+</CardGroup>
+
+## Organizing content in workspaces
+
+### Assigning content to workspaces
+
+When creating content, specify the workspace ID:
+
+```typescript
+const payload = {
+  title: "Project Documentation",
+  type: "note",
+  content: "# Project Overview\n\nKey details...",
+  workspaceId: "65abc123def456789" // Optional
+};
+
+await axios.post(`${BACKEND_URL}/api/v1/content`, payload, {
+  headers: { Authorization: token }
+});
+```
+
+### Frontend workspace selection
+
+The CreateContentModal allows workspace selection:
+
+```tsx
+{workspaces.length > 0 && (
+  <div className="text-left w-full mt-2">
+    <label className="block text-sm font-medium text-gray-700 px-2 mb-1.5">
+      Workspace
+    </label>
+    <select
+      value={selectedWorkspace || ""}
+      onChange={(e) => setSelectedWorkspace(e.target.value || null)}
+      className="w-full px-4 py-2.5 rounded-lg border border-gray-300"
+    >
+      <option value="">No workspace</option>
+      {workspaces.map((ws) => (
+        <option key={ws._id} value={ws._id}>{ws.name}</option>
+      ))}
+    </select>
+  </div>
+)}
+```
+
+### Filtering by workspace
+
+Retrieve content from a specific workspace:
+
+```typescript
+GET /api/v1/content?workspaceId=65abc123def456789
+```
+
+Backend filtering logic:
+
+```typescript
+const filter: any = { userId: userId };
+if (workspaceId) {
+  filter.workspaceId = workspaceId;
+}
+
+const content = await contentModel
+  .find(filter)
+  .select('title link content type tags workspaceId createdAt updatedAt');
+```
+
+## Managing workspaces
+
+### Listing all workspaces
+
+Retrieve all workspaces for the authenticated user:
+
+```typescript
+GET /api/v1/workspaces
+```
+
+Workspaces are returned sorted by creation date (newest first):
+
+```typescript
+app.get("/api/v1/workspaces", userMiddleware, async (req, res) => {
+  try {
+    const workspaces = await WorkspaceModel
+      .find({ userId: req.userId })
+      .sort({ createdAt: -1 });
+    res.json({ workspaces });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+```
+
+### Deleting workspaces
+
+Delete a workspace and handle associated content:
+
+```typescript
+DELETE /api/v1/workspaces/:id
+```
+
+Implementation with content cleanup:
+
+```typescript
+app.delete("/api/v1/workspaces/:id", userMiddleware, async (req, res) => {
+  try {
+    const result = await WorkspaceModel.deleteOne({ 
+      _id: req.params.id, 
+      userId: req.userId 
+    });
+    
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ 
+        message: "Workspace not found" 
+      });
+    }
+    
+    // Remove workspace association from all content
+    await contentModel.updateMany(
+      { workspaceId: req.params.id, userId: req.userId },
+      { $unset: { workspaceId: "" } }
+    );
+    
+    res.json({ message: "Workspace deleted" });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+```
+
+<Warning>
+  When you delete a workspace, the content inside is not deleted. Instead, the content becomes unassigned and appears in your main content view.
+</Warning>
+
+## Frontend integration
+
+### Using the workspace hook
+
+The Dashboard uses a custom hook to manage workspaces:
+
+```typescript
+const { workspaces, createWorkspace, deleteWorkspace } = useWorkspaces();
+
+// Create workspace
+await createWorkspace("New Workspace", "#3B82F6");
+
+// Delete workspace
+await deleteWorkspace(workspaceId);
+```
+
+### Workspace filtering in Dashboard
+
+The Dashboard component filters content by selected workspace:
+
+```typescript
+const displayed = dataToDisplay.filter((item: any) => {
+  const matchesType = !filter || item.type === filter;
+  const matchesWorkspace = !selectedWorkspace || item.workspaceId === selectedWorkspace;
+  return matchesType && matchesWorkspace;
+});
+```
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Use descriptive names" icon="tag">
+    Name workspaces clearly to reflect their purpose (e.g., "Work Projects", "Personal Learning")
+  </Card>
+  <Card title="Color code effectively" icon="palette">
+    Use consistent colors for similar types of workspaces
+  </Card>
+  <Card title="Don't over-organize" icon="sparkles">
+    Start with a few broad workspaces and refine as needed
+  </Card>
+  <Card title="Regular cleanup" icon="broom">
+    Archive or delete unused workspaces to keep your brain organized
+  </Card>
+</CardGroup>
+
+## Example use cases
+
+### Project-based organization
+
+```typescript
+// Create workspace for a specific project
+const projectWorkspace = await createWorkspace("Q1 Marketing Campaign", "#F59E0B");
+
+// Add related content
+await createContent({
+  title: "Campaign Strategy",
+  type: "note",
+  content: "## Goals\n- Increase brand awareness...",
+  workspaceId: projectWorkspace._id
+});
+```
+
+### Topic-based organization
+
+```typescript
+// Learning workspace
+const learningWorkspace = await createWorkspace("JavaScript Learning", "#8B5CF6");
+
+// Save educational resources
+await createContent({
+  title: "Advanced JavaScript Patterns",
+  type: "youtube",
+  link: "https://youtube.com/watch?v=...",
+  workspaceId: learningWorkspace._id
+});
+```

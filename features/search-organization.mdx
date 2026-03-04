@@ -1,0 +1,389 @@
+---
+title: Search and organization
+description: Discover how to search through your content using full-text search, filter by type and workspace, and organize with tags.
+---
+
+## Overview
+
+Cognia provides powerful search capabilities to help you quickly find the content you need. The search system supports full-text search across titles, content, and links, with additional filtering options.
+
+<CardGroup cols={3}>
+  <Card title="Full-text search" icon="magnifying-glass">
+    Search across all your content fields
+  </Card>
+  <Card title="Type filtering" icon="filter">
+    Filter by content type (notes, links, videos)
+  </Card>
+  <Card title="Workspace filtering" icon="folder">
+    View content from specific workspaces
+  </Card>
+</CardGroup>
+
+## Full-text search
+
+### Search API
+
+The search endpoint performs case-insensitive regex matching:
+
+```typescript
+GET /api/v1/search?q=javascript
+```
+
+### Backend implementation
+
+```typescript
+app.get("/api/v1/search", userMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const q = req.query.q as string;
+
+    if (!q || q.trim() === "") {
+      return res.json({
+        results: []
+      });
+    }
+
+    const searchRegex = new RegExp(q.trim(), "i");
+
+    const results = await contentModel.find({
+      userId,
+      $or: [
+        { title: searchRegex },
+        { content: searchRegex },
+        { link: searchRegex }
+      ]
+    });
+
+    return res.json({
+      results: results
+    });
+  }
+  catch (error) {
+    console.error("Search error:", error);
+    res.status(500).json({
+      message: "Internal Server error",
+    })
+  }
+})
+```
+
+<Note>
+  Search automatically filters results to only show content belonging to the authenticated user.
+</Note>
+
+### Search fields
+
+The search query matches against three fields:
+
+1. **Title**: The content's title
+2. **Content**: The body text (for notes)
+3. **Link**: The URL (for YouTube, Twitter, and web links)
+
+### Case-insensitive matching
+
+The regex pattern uses the `i` flag for case-insensitive search:
+
+```typescript
+const searchRegex = new RegExp(q.trim(), "i");
+
+// Matches:
+// "JavaScript" → matches "javascript", "JAVASCRIPT", "JavaScript"
+// "react hooks" → matches "React Hooks", "react hooks", "REACT HOOKS"
+```
+
+## Database indexing
+
+For optimal search performance, the content schema includes text indexes:
+
+```typescript
+contentSchema.index({
+  title: "text",
+  content: "text",
+  link: "text",
+  tags: "text",
+});
+```
+
+<Tip>
+  Text indexes enable faster full-text search queries, especially as your content library grows.
+</Tip>
+
+## Frontend search implementation
+
+### Debounced search
+
+The Dashboard uses debounced search to avoid excessive API calls:
+
+```typescript
+import { useDebouncedSearch } from "../hooks/useDebouncedSearch";
+
+const [query, setQuery] = useState("");
+const { results: searchResults, loading: searchLoading } = 
+  useDebouncedSearch(query, token, 300);
+```
+
+### Search bar component
+
+```tsx
+<SearchBar 
+  value={query} 
+  onChange={setQuery} 
+  placeholder="Search your brain..." 
+/>
+```
+
+### Display logic
+
+The Dashboard switches between search results and regular content:
+
+```typescript
+const dataToDisplay =
+  query.trim().length > 0
+    ? searchResults || []
+    : contents || [];
+```
+
+### Loading states
+
+```tsx
+{searchLoading ? (
+  <div className="flex justify-center items-center py-20">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900">
+    </div>
+  </div>
+) : (
+  // Display results
+)}
+```
+
+## Filtering by content type
+
+### Type filter API
+
+Filter content by type using query parameters:
+
+```typescript
+GET /api/v1/content?type=note
+GET /api/v1/content?type=youtube
+GET /api/v1/content?type=twitter
+GET /api/v1/content?type=link
+```
+
+### Backend filtering
+
+```typescript
+app.get("/api/v1/content", userMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const type = req.query.type as string;
+    const workspaceId = req.query.workspaceId as string;
+    
+    const filter: any = { userId: userId };
+    
+    if (type) {
+      filter.type = type;
+    }
+    
+    if (workspaceId) {
+      filter.workspaceId = workspaceId;
+    }
+
+    const content = await contentModel
+      .find(filter)
+      .select('title link content type tags workspaceId createdAt updatedAt')
+      .populate("userId", "username");
+
+    res.json({ content })
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal Server Error"
+    });
+  }
+});
+```
+
+### Frontend type filtering
+
+The Dashboard applies type filters client-side:
+
+```typescript
+function handleFilterSelect(type: string) {
+  setFilter(prev => (prev === type ? null : type));
+}
+
+const displayed = dataToDisplay.filter((item: any) => {
+  const matchesType = !filter || item.type === filter;
+  const matchesWorkspace = !selectedWorkspace || item.workspaceId === selectedWorkspace;
+  return matchesType && matchesWorkspace;
+});
+```
+
+## Combining filters
+
+### Multiple filter combinations
+
+You can combine type and workspace filters:
+
+```typescript
+// All notes in a specific workspace
+GET /api/v1/content?type=note&workspaceId=65abc123
+
+// All YouTube videos in a workspace
+GET /api/v1/content?type=youtube&workspaceId=65abc123
+```
+
+### Filter priority
+
+<CardGroup cols={2}>
+  <Card title="Search query" icon="1">
+    When a search query is active, results are filtered from search results
+  </Card>
+  <Card title="Type + Workspace" icon="2">
+    Type and workspace filters are applied together (AND logic)
+  </Card>
+</CardGroup>
+
+## Tag-based organization
+
+### Tag schema
+
+Content can have multiple tags:
+
+```typescript
+tags: [{type: mongoose.Types.ObjectId, ref: 'Tag'}]
+```
+
+### Adding tags to content
+
+```typescript
+const createdContent = await contentModel.create({
+  title: "React Best Practices",
+  type: "note",
+  content: "# Best Practices\n...",
+  tags: req.body.tags || [],
+  userId: req.userId,
+});
+```
+
+<Note>
+  Tags are included in the text search index, making tagged content discoverable through search.
+</Note>
+
+## Search examples
+
+### Example 1: Finding notes about JavaScript
+
+```typescript
+// Search query
+GET /api/v1/search?q=javascript
+
+// Returns content where title, content, or link contains "javascript"
+{
+  "results": [
+    {
+      "_id": "65abc123",
+      "title": "JavaScript Closures",
+      "type": "note",
+      "content": "Closures are functions that have access..."
+    },
+    {
+      "_id": "65abc124",
+      "title": "Learn JavaScript",
+      "type": "youtube",
+      "link": "https://youtube.com/watch?v=..."
+    }
+  ]
+}
+```
+
+### Example 2: Filtering by type and workspace
+
+```typescript
+// Get all notes from a specific workspace
+const response = await axios.get(
+  `${BACKEND_URL}/api/v1/content?type=note&workspaceId=${workspaceId}`,
+  {
+    headers: { Authorization: token }
+  }
+);
+```
+
+### Example 3: Search within filtered results
+
+```typescript
+// Frontend: Search results + type filter
+const { results: searchResults } = useDebouncedSearch("react", token, 300);
+
+const displayed = searchResults.filter((item: any) => {
+  return item.type === "note"; // Show only notes from search results
+});
+```
+
+## Empty states
+
+### No results found
+
+The Dashboard handles empty search results gracefully:
+
+```tsx
+{displayed.length === 0 ? (
+  <div className="flex flex-col items-center justify-center py-20">
+    <h3 className="text-xl font-semibold text-gray-900 mb-2">
+      {query ? "No results found" : "Your brain is empty"}
+    </h3>
+    <p className="text-gray-600 mb-6">
+      {query ? "Try a different search term" : "Start by adding your first content"}
+    </p>
+  </div>
+) : (
+  // Display content grid
+)}
+```
+
+## Performance considerations
+
+<CardGroup cols={2}>
+  <Card title="Debouncing" icon="clock">
+    300ms delay prevents excessive API calls while typing
+  </Card>
+  <Card title="Text indexes" icon="database">
+    MongoDB text indexes speed up search queries
+  </Card>
+  <Card title="Field selection" icon="list-check">
+    Only necessary fields are returned to reduce payload size
+  </Card>
+  <Card title="User scoping" icon="user">
+    All queries are scoped to userId for security and performance
+  </Card>
+</CardGroup>
+
+## Best practices
+
+### Effective searching
+
+1. **Use specific terms**: More specific queries return more relevant results
+2. **Try variations**: Search for different forms of keywords
+3. **Combine filters**: Use type and workspace filters to narrow results
+4. **Use tags**: Tag content consistently for better organization
+
+### Organizing for searchability
+
+```typescript
+// Good: Descriptive title and content
+{
+  title: "React useEffect Hook Explained",
+  content: "The useEffect hook handles side effects in React...",
+  tags: ["react", "hooks", "tutorial"]
+}
+
+// Less searchable: Vague title
+{
+  title: "Notes",
+  content: "Some stuff about hooks",
+  tags: []
+}
+```
+
+<Tip>
+  Use descriptive titles and add relevant tags to make your content easier to find later.
+</Tip>

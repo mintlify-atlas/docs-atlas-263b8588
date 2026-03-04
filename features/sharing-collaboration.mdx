@@ -1,0 +1,410 @@
+---
+title: Sharing and collaboration
+description: Share your second brain publicly with shareable links, allowing others to view your curated content collection.
+---
+
+## Overview
+
+Cognia's public brain sharing feature allows you to share your entire content collection with others through a unique shareable link. This is perfect for creating public knowledge bases, portfolios, or sharing curated resources.
+
+<Note>
+  When you share your brain, all your content becomes publicly accessible through the share link. The link doesn't require authentication.
+</Note>
+
+## Generating share links
+
+### Creating a share link
+
+Generate a unique share link for your brain:
+
+```typescript
+POST /api/v1/brain/share
+
+Request body:
+{
+  "share": true
+}
+
+Response:
+{
+  "message": "Share link created",
+  "hash": "abc123xyz"
+}
+```
+
+### Backend implementation
+
+The share endpoint creates or updates a unique hash:
+
+```typescript
+app.post("/api/v1/brain/share", userMiddleware, async (req, res) => {
+  try {
+    const share = req.body.share === true || req.body.share === "true";
+
+    if (share) {
+      const hash = helper(10);
+      await LinkModel.findOneAndUpdate(
+        { userId: req.userId },
+        { hash: hash },
+        { upsert: true, new: true }
+      );
+
+      res.json({
+        message: "Share link created",
+        hash: hash
+      })
+    } else {
+      await LinkModel.deleteMany({
+        userId: req.userId,
+      });
+      res.json({
+        message: "Removed Link",
+        share: false
+      });
+    }
+  }
+  catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Internal Server Error"
+    });
+  }
+});
+```
+
+### Hash generation
+
+The `helper` function generates a random hash of specified length:
+
+```typescript
+const hash = helper(10);
+// Example output: "k3n8m2q9p5"
+```
+
+<Tip>
+  Each user can only have one active share link at a time. Creating a new link will replace the existing one.
+</Tip>
+
+## Disabling sharing
+
+### Removing share links
+
+To stop sharing your brain, send the same request with `share: false`:
+
+```typescript
+POST /api/v1/brain/share
+
+Request body:
+{
+  "share": false
+}
+
+Response:
+{
+  "message": "Removed Link",
+  "share": false
+}
+```
+
+This deletes all share links for your account:
+
+```typescript
+await LinkModel.deleteMany({
+  userId: req.userId,
+});
+```
+
+<Warning>
+  Deleting your share link will immediately break any existing shared URLs. Anyone with the old link will no longer be able to access your brain.
+</Warning>
+
+## Accessing shared brains
+
+### Public access endpoint
+
+Access a shared brain using the hash:
+
+```typescript
+GET /api/v1/brain/:shareLink
+
+// Example
+GET /api/v1/brain/k3n8m2q9p5
+```
+
+### Backend implementation
+
+```typescript
+app.get("/api/v1/brain/:shareLink", async (req, res) => {
+  try {
+    const hash = req.params.shareLink;
+    const link = await LinkModel.findOne({ hash });
+    
+    if (!link) {
+      return res.status(404).json({
+        message: "Invalid Link"
+      })
+    }
+
+    const [content, user] = await Promise.all([
+      contentModel.find({
+        userId: link.userId,
+      }),
+      userModel.findOne({
+        _id: link.userId,
+      })
+    ]);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "user not found",
+      })
+    }
+
+    return res.json({
+      username: user.username,
+      content,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+})
+```
+
+### Response format
+
+```json
+{
+  "username": "john_doe",
+  "content": [
+    {
+      "_id": "65abc123",
+      "title": "My First Note",
+      "type": "note",
+      "content": "# Hello World\n\nThis is my content",
+      "tags": [],
+      "createdAt": "2024-01-15T10:30:00Z"
+    },
+    {
+      "_id": "65abc124",
+      "title": "Interesting Video",
+      "type": "youtube",
+      "link": "https://youtube.com/watch?v=...",
+      "tags": ["learning"],
+      "createdAt": "2024-01-16T14:20:00Z"
+    }
+  ]
+}
+```
+
+<Note>
+  The endpoint returns the username along with all content, allowing viewers to see who created the brain.
+</Note>
+
+## Frontend integration
+
+### Creating and copying share link
+
+The Dashboard provides a Share button that creates and copies the link:
+
+```tsx
+<ButtonCustom
+  onClick={async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.post(
+        `${BACKEND_URL}/api/v1/brain/share`,
+        { share: true },
+        { headers: { Authorization: token } }
+      );
+      const shareUrl = `${window.location.origin}/brain/${response.data.hash}`;
+      handleCopy(shareUrl);
+    } catch (error) {
+      console.error("error", error);
+    }
+  }}
+  varient="secondary"
+  text="Share"
+  icon={<ShareIcon />}
+/>
+```
+
+### Copy to clipboard
+
+```typescript
+async function handleCopy(text: string) {
+  await navigator.clipboard.writeText(text);
+  showCopyToast();
+}
+```
+
+## Link schema
+
+Share links are stored with the following schema:
+
+```typescript
+const linkSchema = new Schema({
+  hash: String,
+  userId: {
+    type: mongoose.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    unique: true
+  }
+})
+```
+
+<Note>
+  The `unique: true` constraint on `userId` ensures each user can only have one active share link.
+</Note>
+
+## Security considerations
+
+### Public access
+
+<Warning>
+  Shared brains are completely public. Anyone with the link can view all your content without authentication.
+</Warning>
+
+**What is shared:**
+- All your content (notes, links, videos, tweets)
+- Your username
+- Content titles, descriptions, and links
+- Tags and metadata
+- Creation timestamps
+
+**What is NOT shared:**
+- Your password or authentication credentials
+- Your email or private user information
+- Other users' content
+
+### Authentication bypass
+
+Notice the share endpoint doesn't require authentication:
+
+```typescript
+app.get("/api/v1/brain/:shareLink", async (req, res) => {
+  // No userMiddleware - public access
+```
+
+This allows anyone to access shared content without logging in.
+
+### Best practices
+
+<CardGroup cols={2}>
+  <Card title="Review before sharing" icon="eye">
+    Check your content before enabling sharing to avoid exposing sensitive information
+  </Card>
+  <Card title="Use workspace filtering" icon="filter">
+    Currently all content is shared - organize sensitive content in private workspaces
+  </Card>
+  <Card title="Rotate links regularly" icon="rotate">
+    Generate new share links periodically to limit access to old links
+  </Card>
+  <Card title="Monitor usage" icon="chart-line">
+    Keep track of who you've shared your link with
+  </Card>
+</CardGroup>
+
+## Use cases
+
+### Public knowledge base
+
+```typescript
+// Share curated learning resources
+const response = await axios.post(
+  `${BACKEND_URL}/api/v1/brain/share`,
+  { share: true },
+  { headers: { Authorization: token } }
+);
+
+const publicUrl = `https://cognia.app/brain/${response.data.hash}`;
+// Share this URL on social media, portfolio, etc.
+```
+
+### Portfolio of work
+
+Share your collection of projects, articles, and resources:
+
+```typescript
+// Content organized by workspace:
+// - "My Projects" → Public work samples
+// - "Articles I've Written" → Published content
+// - "Inspiration" → Curated resources
+
+// Generate share link
+const shareUrl = await generateShareLink();
+// Add to resume, LinkedIn, personal website
+```
+
+### Collaborative curation
+
+Share reading lists and resources with teams:
+
+```typescript
+// Create brain with curated content
+// Generate share link
+// Share with team members
+const teamResourcesUrl = `https://cognia.app/brain/${hash}`;
+```
+
+## Limitations and future improvements
+
+### Current limitations
+
+- All content is shared (no selective sharing)
+- No analytics on share link views
+- No password protection for share links
+- No expiration dates for share links
+
+### Potential enhancements
+
+<CardGroup cols={2}>
+  <Card title="Selective sharing" icon="filter">
+    Share specific workspaces instead of entire brain
+  </Card>
+  <Card title="Password protection" icon="lock">
+    Add optional password requirement for shared brains
+  </Card>
+  <Card title="Analytics" icon="chart-bar">
+    Track views and engagement on shared content
+  </Card>
+  <Card title="Expiring links" icon="clock">
+    Set expiration dates for temporary sharing
+  </Card>
+</CardGroup>
+
+## Error handling
+
+### Invalid share link
+
+```typescript
+GET /api/v1/brain/invalid_hash
+
+Response (404):
+{
+  "message": "Invalid Link"
+}
+```
+
+### User not found
+
+If the user account was deleted but the link exists:
+
+```typescript
+Response (404):
+{
+  "message": "user not found"
+}
+```
+
+### Server errors
+
+```typescript
+Response (500):
+{
+  "message": "Internal server error"
+}
+```
