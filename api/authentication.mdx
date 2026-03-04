@@ -42,7 +42,7 @@ POST /api/v1/signup
 ### Example Request
 
 ```bash
-curl -X POST https://api.cognia.example/api/v1/signup \
+curl -X POST http://localhost:3000/api/v1/signup \
   -H "Content-Type: application/json" \
   -d '{
     "username": "johndoe",
@@ -117,7 +117,7 @@ POST /api/v1/signin
 ### Example Request
 
 ```bash
-curl -X POST https://api.cognia.example/api/v1/signin \
+curl -X POST http://localhost:3000/api/v1/signin \
   -H "Content-Type: application/json" \
   -d '{
     "username": "johndoe",
@@ -181,13 +181,13 @@ Once you have received a JWT token from the sign-in endpoint, include it in the 
 ### Example Authenticated Request
 
 ```bash
-curl -X GET https://api.cognia.example/api/v1/protected-endpoint \
+curl -X GET http://localhost:3000/api/v1/content \
   -H "Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 ```
 
 ```javascript
 // JavaScript/Node.js example
-const response = await fetch('https://api.cognia.example/api/v1/protected-endpoint', {
+const response = await fetch('http://localhost:3000/api/v1/content', {
   headers: {
     'Authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
   }
@@ -202,7 +202,7 @@ headers = {
     'Authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 }
 
-response = requests.get('https://api.cognia.example/api/v1/protected-endpoint', headers=headers)
+response = requests.get('http://localhost:3000/api/v1/content', headers=headers)
 ```
 
 <Note>
@@ -312,3 +312,56 @@ PORT=3000
 ```
 
 Make sure these are properly configured in your `.env` file before running the application.
+
+---
+
+## Get Current User
+
+Retrieve information about the currently authenticated user.
+
+### Endpoint
+
+```
+GET /api/v1/user
+```
+
+### Authentication
+
+<Note>
+  This endpoint requires authentication. Include your JWT token in the Authorization header.
+</Note>
+
+### Example Request
+
+```bash
+curl -X GET http://localhost:3000/api/v1/user \
+  -H "Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+### Response
+
+<ResponseExample>
+```json 200 - Success
+{
+  "username": "johndoe"
+}
+```
+
+```json 404 - User Not Found
+{
+  "message": "User not found"
+}
+```
+
+```json 500 - Server Error
+{
+  "error": "Internal Server Error"
+}
+```
+</ResponseExample>
+
+### Response Fields
+
+<ResponseField name="username" type="string">
+  The username of the authenticated user
+</ResponseField>
