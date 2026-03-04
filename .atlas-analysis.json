@@ -1,0 +1,78 @@
+{
+  "projectType": "saas",
+  "projectName": "Cognia",
+  "projectDescription": "A minimal second brain for saving and organizing YouTube videos and Twitter links in one place",
+  "theme": "palm",
+  "primaryColor": "#171717",
+  "lightColor": "#f5f5f5",
+  "darkColor": "#404040",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/content-management",
+              "features/workspaces",
+              "features/search-organization",
+              "features/sharing-collaboration"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "api/authentication"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/content",
+              "api/workspaces",
+              "api/search",
+              "api/sharing"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Content management for notes, YouTube videos, Twitter links, and web links",
+    "Workspace organization with customizable colors and icons",
+    "Full-text search across all content",
+    "Public brain sharing via shareable links",
+    "Tag-based content organization",
+    "JWT-based authentication"
+  ],
+  "publicApiSurface": [
+    "POST /api/v1/signup",
+    "POST /api/v1/signin",
+    "POST /api/v1/content",
+    "GET /api/v1/content",
+    "DELETE /api/v1/content/:id",
+    "GET /api/v1/workspaces",
+    "POST /api/v1/workspaces",
+    "PUT /api/v1/workspaces/:id",
+    "DELETE /api/v1/workspaces/:id",
+    "GET /api/v1/search",
+    "POST /api/v1/brain/share",
+    "GET /api/v1/brain/:shareLink",
+    "GET /api/v1/user"
+  ]
+}
